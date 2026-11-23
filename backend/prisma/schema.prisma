@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Space {
+  id                  String            @id @default(cuid())
+  name                String
+  description         String            @default("")
+  inviteCode          String            @unique
+  reminderDaysBefore  Int               @default(7)
+  currency            String            @default("USD")
+  accentColor         String            @default("#FF5A5F")
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  members             Member[]
+  events              Event[]
+  celebrationPosts    CelebrationPost[]
+  paymentSchedules    PaymentSchedule[]
+  chatMessages        ChatMessage[]
+}
+
+model Member {
+  id                String                  @id @default(cuid())
+  spaceId           String
+  space             Space                   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  name              String
+  email             String
+  pinHash           String
+  role              String                  @default("MEMBER") // "ADMIN" | "MEMBER"
+  jobTitle          String                  @default("")
+  department        String                  @default("")
+  avatarEmoji       String                  @default("🎉")
+  avatarColor       String                  @default("#FF5A5F")
+  avatarImageUrl    String                  @default("")
+
+  // Perfil para celebraciones e intercambios
+  birthDate         String                  // "YYYY-MM-DD"
+  workAnniversary   String?                 // "YYYY-MM-DD" opcional
+  shirtSize         String                  @default("")
+  shoeSize          String                  @default("")
+  favoriteColors    String                  @default("")
+  allergies         String                  @default("")
+  favoriteTreats    String                  @default("")
+  hobbiesNotes      String                  @default("")
+
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  wishlistItems     WishlistItem[]          @relation("WishlistOwner")
+  reservedItems     WishlistItem[]          @relation("WishlistReserver")
+  groupGiftsPicked  WishlistItem[]          @relation("GroupGiftSelector")
+  groupGiftJoins    GroupGiftParticipant[]
+  createdEvents     Event[]                 @relation("EventCreator")
+  themeOptions      ThemeOption[]
+  themeVotes        ThemeVote[]
+  checklistItems    ChecklistItem[]         @relation("ChecklistAssignee")
+  contributions     EventContribution[]
+  surpriseReceived  SurpriseMessage[]       @relation("SurpriseTarget")
+  surpriseAuthored  SurpriseMessage[]       @relation("SurpriseAuthor")
+  postsAuthored     CelebrationPost[]       @relation("PostAuthor")
+  postsAbout        CelebrationPost[]       @relation("PostTarget")
+  santaGiver        SecretSantaAssignment[] @relation("SantaGiver")
+  santaReceiver     SecretSantaAssignment[] @relation("SantaReceiver")
+  createdPayments   PaymentSchedule[]       @relation("PaymentCreator")
+  buyerPayments     PaymentSchedule[]       @relation("PaymentBuyer")
+  targetPayments    PaymentSchedule[]       @relation("PaymentTarget")
+  paymentRecords    PaymentRecord[]
+  chatMessages      ChatMessage[]
+  postReactions     PostReaction[]
+  pollVotes         PollVote[]
+
+  @@unique([spaceId, email])
+}
+
+model WishlistItem {
+  id            String    @id @default(cuid())
+  ownerId       String
+  owner         Member    @relation("WishlistOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String    @default("")
+  url           String    @default("")
+  imageUrl      String    @default("")
+  estimatedPrice String   @default("")
+  priority      String    @default("MEDIUM") // "HIGH" | "MEDIUM" | "LOW"
+
+  // Reserva secreta: NUNCA se expone al ownerId desde la API
+  reservedById  String?
+  reservedBy    Member?   @relation("WishlistReserver", fields: [reservedById], references: [id], onDelete: SetNull)
+  reservedAt    DateTime?
+  reservedNote  String    @default("")
+
+  // Regalo grupal secreto: NUNCA se expone al ownerId desde la API
+  isGroupGift           Boolean                @default(false)
+  groupGiftNote         String                 @default("")
+  groupGiftSelectedById String?
+  groupGiftSelectedBy   Member?                @relation("GroupGiftSelector", fields: [groupGiftSelectedById], references: [id], onDelete: SetNull)
+  groupGiftParticipants GroupGiftParticipant[]
+  paymentSchedules      PaymentSchedule[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model GroupGiftParticipant {
+  id             String       @id @default(cuid())
+  wishlistItemId String
+  wishlistItem   WishlistItem @relation(fields: [wishlistItemId], references: [id], onDelete: Cascade)
+  memberId       String
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([wishlistItemId, memberId])
+}
+
+model Event {
+  id                String                  @id @default(cuid())
+  spaceId           String
+  space             Space                   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  createdById       String
+  createdBy         Member                  @relation("EventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  title             String
+  description       String                  @default("")
+  type              String                  @default("CELEBRATION") // "BIRTHDAY_GROUP" | "SECRET_SANTA" | "GIFT_EXCHANGE" | "ANNIVERSARY" | "CELEBRATION"
+  eventDate         String                  // "YYYY-MM-DD"
+  eventTime         String                  @default("16:00")
+  location          String                  @default("")
+  selectedTheme     String                  @default("")
+  votingClosed      Boolean                 @default(false)
+  quotaAmount       Float                   @default(0)
+  budgetNote        String                  @default("")
+
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  themeOptions      ThemeOption[]
+  checklistItems    ChecklistItem[]
+  contributions     EventContribution[]
+  santaAssignments  SecretSantaAssignment[]
+}
+
+model ThemeOption {
+  id            String      @id @default(cuid())
+  eventId       String
+  event         Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  proposedById  String
+  proposedBy    Member      @relation(fields: [proposedById], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String      @default("")
+  emoji         String      @default("🎈")
+  createdAt     DateTime    @default(now())
+
+  votes         ThemeVote[]
+}
+
+model ThemeVote {
+  id            String      @id @default(cuid())
+  themeOptionId String
+  themeOption   ThemeOption @relation(fields: [themeOptionId], references: [id], onDelete: Cascade)
+  memberId      String
+  member        Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@unique([themeOptionId, memberId])
+}
+
+model ChecklistItem {
+  id            String   @id @default(cuid())
+  eventId       String
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title         String
+  category      String   @default("Comida") // "Comida" | "Bebidas" | "Decoración" | "Logística" | "Regalo"
+  assignedToId  String?
+  assignedTo    Member?  @relation("ChecklistAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  estimatedCost Float    @default(0)
+  completed     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model EventContribution {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  amount    Float     @default(0)
+  paid      Boolean   @default(false)
+  paidAt    DateTime?
+  note      String    @default("")
+
+  @@unique([eventId, memberId])
+}
+
+model SecretSantaAssignment {
+  id          String   @id @default(cuid())
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  giverId     String
+  giver       Member   @relation("SantaGiver", fields: [giverId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    Member   @relation("SantaReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([eventId, giverId])
+}
+
+model SurpriseMessage {
+  id             String   @id @default(cuid())
+  targetMemberId String
+  targetMember   Member   @relation("SurpriseTarget", fields: [targetMemberId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         Member   @relation("SurpriseAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  message        String
+  isIdea         Boolean  @default(false) // true = propuesta de regalo/plan, false = mensaje general
+  createdAt      DateTime @default(now())
+}
+
+model CelebrationPost {
+  id             String         @id @default(cuid())
+  spaceId        String
+  space          Space          @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  authorId       String
+  author         Member         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  targetMemberId String?
+  targetMember   Member?        @relation("PostTarget", fields: [targetMemberId], references: [id], onDelete: SetNull)
+
+  message        String
+  emoji          String         @default("🥳")
+  imageUrl       String         @default("")
+  likesCount     Int            @default(0)
+  createdAt      DateTime       @default(now())
+
+  reactions      PostReaction[]
+  pollOptions    PollOption[]
+}
+
+model PostReaction {
+  id        String          @id @default(cuid())
+  postId    String
+  post      CelebrationPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime        @default(now())
+
+  @@unique([postId, memberId, emoji])
+}
+
+model PollOption {
+  id      String          @id @default(cuid())
+  postId  String
+  post    CelebrationPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  label   String
+  order   Int             @default(0)
+  votes   PollVote[]
+}
+
+model PollVote {
+  id        String     @id @default(cuid())
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  memberId  String
+  member    Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([optionId, memberId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  spaceId   String
+  space     Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    Member   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  text      String   @default("")
+  imageUrl  String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model PaymentSchedule {
+  id                  String          @id @default(cuid())
+  spaceId             String
+  space               Space           @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  createdById         String
+  createdBy           Member          @relation("PaymentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  title               String
+  description         String          @default("")
+  dueDate             String          // "YYYY-MM-DD" fecha en que se realiza el pago
+  amountPerPerson     Float           @default(0)
+  currency            String          @default("USD")
+  status              String          @default("OPEN") // "OPEN" | "CLOSED"
+
+  // Cumpleañero asociado (opcional) y regalo grupal de su wishlist (opcional)
+  targetMemberId      String?
+  targetMember        Member?         @relation("PaymentTarget", fields: [targetMemberId], references: [id], onDelete: SetNull)
+  excludeTargetMember Boolean         @default(false)
+  wishlistItemId      String?
+  wishlistItem        WishlistItem?   @relation(fields: [wishlistItemId], references: [id], onDelete: SetNull)
+
+  // Datos de quien realizará la compra / recibe las cuotas
+  buyerMemberId       String?
+  buyerMember         Member?         @relation("PaymentBuyer", fields: [buyerMemberId], references: [id], onDelete: SetNull)
+  buyerName           String
+  paymentMethod       String          @default("Transferencia")
+  bankName            String          @default("")
+  accountOrPhone      String          @default("")
+  documentId          String          @default("")
+  paymentNotes        String          @default("")
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  records             PaymentRecord[]
+}
+
+model PaymentRecord {
+  id          String          @id @default(cuid())
+  scheduleId  String
+  schedule    PaymentSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  memberId    String
+  member      Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  amount      Float           @default(0)
+  status          String          @default("PENDING") // "PENDING" | "REPORTED" | "CONFIRMED"
+  reference       String          @default("")
+  receiptImageUrl String          @default("")
+  note            String          @default("")
+  paidAt      DateTime?
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([scheduleId, memberId])
+}

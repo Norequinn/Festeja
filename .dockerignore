@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+.DS_Store
+backend/.env
+backend/dist
+backend/public
+backend/uploads
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+mobile/.expo
+mobile/dist
+mobile/web-build
+*.log

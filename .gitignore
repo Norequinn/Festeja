@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+backend/dist/
+backend/public/
+backend/uploads/
+
+# Local env & SQLite database
+.env
+backend/.env
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+
+# OS / IDE
+.DS_Store
+*.log
